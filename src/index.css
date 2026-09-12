@@ -6,6 +6,44 @@
   }
 }
 
+/* Custom Cartoon Paper Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+  border-radius: 9999px;
+  border: 2px solid #0f172a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #fbbf24;
+}
+
+/* Safe area support for mobile devices */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+}
+
+.pt-safe {
+  padding-top: max(1rem, env(safe-area-inset-top, 1rem));
+}
+
+.pl-safe {
+  padding-left: max(1rem, env(safe-area-inset-left, 1rem));
+}
+
+.pr-safe {
+  padding-right: max(1rem, env(safe-area-inset-right, 1rem));
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

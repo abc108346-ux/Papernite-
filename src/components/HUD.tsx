@@ -23,6 +23,7 @@ export const HUD: React.FC<HUDProps> = ({
   onReload,
   onOpenScoreboard
 }) => {
+  const [joyOffset, setJoyOffset] = React.useState({ x: 0, y: 0 });
   const isMobile = inputManager?.isMobile();
   const weapon = WEAPONS[hud.weaponId] || WEAPONS.rifle;
 
@@ -126,9 +127,10 @@ export const HUD: React.FC<HUDProps> = ({
           <button
             id="click-to-play-lock"
             onClick={onRequestPointerLock}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-lg px-8 py-4 rounded-2xl shadow-2xl border-4 border-slate-900 transform hover:scale-105 transition active:scale-95"
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-lg px-8 py-4 rounded-2xl shadow-2xl border-4 border-slate-900 transform hover:scale-105 transition active:scale-95 flex flex-col items-center gap-1"
           >
-            🖱️ CLIQUE PARA MIRAR E ATIRAR
+            <span>🖱️ CLIQUE PARA ENTRAR NA PARTIDA</span>
+            <span className="text-xs font-bold text-slate-800 opacity-80">(Travar Mouse)</span>
           </button>
         </div>
       )}
@@ -243,8 +245,11 @@ export const HUD: React.FC<HUDProps> = ({
                 const touch = e.touches[0];
                 const dx = (touch.clientX - centerX) / (rect.width / 2);
                 const dy = (touch.clientY - centerY) / (rect.height / 2);
-                inputManager.touchJoystick.x = Math.max(-1, Math.min(1, dx));
-                inputManager.touchJoystick.y = Math.max(-1, Math.min(1, dy));
+                const clampedX = Math.max(-1, Math.min(1, dx));
+                const clampedY = Math.max(-1, Math.min(1, dy));
+                inputManager.touchJoystick.x = clampedX;
+                inputManager.touchJoystick.y = clampedY;
+                setJoyOffset({ x: clampedX * 36, y: clampedY * 36 });
               }
             }}
             onTouchEnd={() => {
@@ -252,11 +257,15 @@ export const HUD: React.FC<HUDProps> = ({
                 inputManager.touchJoystick.active = false;
                 inputManager.touchJoystick.x = 0;
                 inputManager.touchJoystick.y = 0;
+                setJoyOffset({ x: 0, y: 0 });
               }
             }}
           >
             {/* Joystick Thumb Knub */}
-            <div className="w-14 h-14 rounded-full bg-amber-400/80 border-2 border-slate-900 shadow-lg flex items-center justify-center text-xs font-bold text-slate-950">
+            <div 
+              className="w-14 h-14 rounded-full bg-amber-400/80 border-2 border-slate-900 shadow-lg flex items-center justify-center text-xs font-bold text-slate-950 transition-transform duration-75"
+              style={{ transform: `translate(${joyOffset.x}px, ${joyOffset.y}px)` }}
+            >
               🕹️
             </div>
           </div>

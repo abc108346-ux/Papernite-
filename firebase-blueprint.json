@@ -1,92 +1,72 @@
 {
   "entities": {
-    "UserProfile": {
-      "title": "UserProfile",
-      "description": "User profile with nickname, equipped skin, equipped weapon, stats and friend list",
+    "Match": {
+      "title": "Match",
+      "description": "A game match",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Unique user identifier",
-          "maxLength": 128
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Player nickname",
-          "maxLength": 30
-        },
-        "photoURL": {
-          "type": "string",
-          "description": "Avatar image URL",
-          "maxLength": 500
-        },
-        "skinId": {
-          "type": "string",
-          "description": "Selected paper character skin id",
-          "maxLength": 50
-        },
-        "weaponId": {
-          "type": "string",
-          "description": "Selected paper weapon id",
-          "maxLength": 50
-        },
-        "kills": {
-          "type": "number",
-          "description": "Total career kills"
-        },
-        "deaths": {
-          "type": "number",
-          "description": "Total career deaths"
-        },
-        "wins": {
-          "type": "number",
-          "description": "Total career wins"
-        },
-        "matchesPlayed": {
-          "type": "number",
-          "description": "Total matches played"
-        },
-        "status": {
-          "type": "string",
-          "description": "Online or In-Match status",
-          "maxLength": 30
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Profile creation ISO timestamp",
-          "maxLength": 50
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Last updated ISO timestamp",
-          "maxLength": 50
-        }
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "mapId": { "type": "string" },
+        "scoreRed": { "type": "number" },
+        "scoreBlue": { "type": "number" },
+        "timeRemaining": { "type": "number" },
+        "winner": { "type": "string", "enum": ["RED", "BLUE", "DRAW", "NONE"] },
+        "createdAt": { "type": "number" },
+        "hostId": { "type": "string" }
       },
-      "required": ["uid", "displayName", "skinId", "weaponId"]
+      "required": ["status", "mapId", "createdAt", "hostId"]
     },
-    "FriendRequest": {
-      "title": "FriendRequest",
-      "description": "Friend requests between players",
+    "PlayerState": {
+      "title": "Player State",
+      "description": "Player in a match",
       "type": "object",
       "properties": {
-        "fromUid": { "type": "string", "maxLength": 128 },
-        "fromNickname": { "type": "string", "maxLength": 30 },
-        "toUid": { "type": "string", "maxLength": 128 },
-        "toNickname": { "type": "string", "maxLength": 30 },
-        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
-        "createdAt": { "type": "string", "maxLength": 50 }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "skinId": { "type": "string" },
+        "weaponId": { "type": "string" },
+        "team": { "type": "string", "enum": ["RED", "BLUE"] },
+        "pos": { "type": "object" },
+        "rotY": { "type": "number" },
+        "pitch": { "type": "number" },
+        "isShooting": { "type": "boolean" },
+        "isAiming": { "type": "boolean" },
+        "isReloading": { "type": "boolean" },
+        "isDead": { "type": "boolean" },
+        "health": { "type": "number" },
+        "maxHealth": { "type": "number" },
+        "kills": { "type": "number" },
+        "deaths": { "type": "number" },
+        "ping": { "type": "number" },
+        "respawnTimer": { "type": "number" },
+        "updatedAt": { "type": "number" }
       },
-      "required": ["fromUid", "toUid", "status"]
+      "required": ["id", "name", "team", "pos", "health", "updatedAt"]
+    },
+    "GameEvent": {
+      "title": "Game Event",
+      "description": "Transient game events like shooting or hits",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["shoot", "hit", "kill", "respawn"] },
+        "timestamp": { "type": "number" },
+        "data": { "type": "string" }
+      },
+      "required": ["type", "timestamp", "data"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "UserProfile",
-      "description": "Public player profile containing skin, weapon, stats and nickname"
+    "matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Active and past matches"
     },
-    "/friendRequests/{requestId}": {
-      "schema": "FriendRequest",
-      "description": "Friend requests between players"
+    "matches/{matchId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/PlayerState" },
+      "description": "Players in a match"
+    },
+    "matches/{matchId}/events/{eventId}": {
+      "schema": { "$ref": "#/entities/GameEvent" },
+      "description": "Game events for the match"
     }
   }
 }

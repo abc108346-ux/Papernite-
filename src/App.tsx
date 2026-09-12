@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BotDifficulty, GameMatchState, GraphicsSettings, MapId, MatchmakingQueueState, PlayerNetworkState, Team, UserProfile } from './types/game';
+import { BotDifficulty, GameMatchState, GraphicsSettings, MapId, MapSelectionId, MatchmakingQueueState, PlayerNetworkState, Team, UserProfile } from './types/game';
 import { DEFAULT_SETTINGS, LOADING_TIPS, MAPS, WEAPONS } from './game/constants';
 import { AuthService } from './firebase/authService';
 import { GameEngine, HUDData, IMatchNetworkBridge } from './game/engine/GameEngine';
@@ -18,7 +18,7 @@ import { soundManager } from './game/audio/SoundManager';
 export default function App() {
   const [screen, setScreen] = useState<'lobby' | 'loading' | 'playing'>('lobby');
   const [userProfile, setUserProfile] = useState<UserProfile>(AuthService.getInitialProfile());
-  const [selectedMap, setSelectedMap] = useState<MapId>('paper_city');
+  const [selectedMap, setSelectedMap] = useState<MapSelectionId>('paper_city');
   const [settings, setSettings] = useState<GraphicsSettings>(() => {
     try {
       const saved = localStorage.getItem('papernite_settings');
@@ -94,6 +94,17 @@ export default function App() {
   // =========================================================================
   const handleStartOnlineMatchmaking = async () => {
     soundManager.init();
+    
+    if (!AuthService.getCurrentUser()) {
+      try {
+        const profile = await AuthService.loginWithGoogle();
+        if (profile) setUserProfile(profile);
+      } catch(e) {
+        alert("Você precisa fazer login com Google para jogar online.");
+        return;
+      }
+    }
+
     setIsMatchmakingOpen(true);
     setQueueState({
       playersCount: 1,
@@ -123,41 +134,43 @@ export default function App() {
         setTimeout(() => {
           setScreen('playing');
 
-          if (gameContainerRef.current) {
-            if (gameEngineRef.current) {
-              gameEngineRef.current.destroy();
-            }
-
-            activeBridgeRef.current = client;
-
-            const engine = new GameEngine(
-              gameContainerRef.current,
-              mapId,
-              client,
-              settings,
-              (hudData) => {
-                setHudState(prev => ({
-                  ...prev,
-                  ...hudData,
-                  scoreRed: matchState.scoreRed,
-                  scoreBlue: matchState.scoreBlue,
-                  timeRemaining: matchState.timeRemaining,
-                  killFeed: matchState.killFeed
-                }));
+          setTimeout(() => {
+            if (gameContainerRef.current) {
+              if (gameEngineRef.current) {
+                gameEngineRef.current.destroy();
               }
-            );
 
-            engine.setLocalPlayerInfo(playerId, team, userProfile.skinId, userProfile.weaponId);
+              activeBridgeRef.current = client;
 
-            engine.inputManager.setCallbacks({
-              onPointerLockChange: (locked) => setIsPointerLocked(locked),
-              onWeaponSwitch: (slot) => engine.handleWeaponSwitch(slot),
-              onScoreboard: (show) => setIsScoreboardOpen(show),
-              onPause: () => setIsSettingsOpen(true)
-            });
+              const engine = new GameEngine(
+                gameContainerRef.current,
+                mapId,
+                client,
+                settings,
+                (hudData) => {
+                  setHudState(prev => ({
+                    ...prev,
+                    ...hudData,
+                    scoreRed: prev.scoreRed,
+                    scoreBlue: prev.scoreBlue,
+                    timeRemaining: prev.timeRemaining,
+                    killFeed: prev.killFeed
+                  }));
+                }
+              );
 
-            gameEngineRef.current = engine;
-          }
+              engine.setLocalPlayerInfo(playerId, team, userProfile.skinId, userProfile.weaponId);
+
+              engine.inputManager.setCallbacks({
+                onPointerLockChange: (locked) => setIsPointerLocked(locked),
+                onWeaponSwitch: (slot) => engine.handleWeaponSwitch(slot),
+                onScoreboard: (show) => setIsScoreboardOpen(show),
+                onPause: () => setIsSettingsOpen(true)
+              });
+
+              gameEngineRef.current = engine;
+            }
+          }, 100); // Wait for React to render the canvas
         }, 1200);
       },
 
@@ -277,41 +290,43 @@ export default function App() {
           setTimeout(() => {
             setScreen('playing');
 
-            if (gameContainerRef.current) {
-              if (gameEngineRef.current) {
-                gameEngineRef.current.destroy();
-              }
-
-              activeBridgeRef.current = localController;
-
-              const engine = new GameEngine(
-                gameContainerRef.current,
-                assignedMap,
-                localController,
-                settings,
-                (hudData) => {
-                  setHudState(prev => ({
-                    ...prev,
-                    ...hudData,
-                    scoreRed: matchState.scoreRed,
-                    scoreBlue: matchState.scoreBlue,
-                    timeRemaining: matchState.timeRemaining,
-                    killFeed: matchState.killFeed
-                  }));
+            setTimeout(() => {
+              if (gameContainerRef.current) {
+                if (gameEngineRef.current) {
+                  gameEngineRef.current.destroy();
                 }
-              );
 
-              engine.setLocalPlayerInfo(playerId, assignedTeam, userProfile.skinId, userProfile.weaponId);
+                activeBridgeRef.current = localController;
 
-              engine.inputManager.setCallbacks({
-                onPointerLockChange: (locked) => setIsPointerLocked(locked),
-                onWeaponSwitch: (slot) => engine.handleWeaponSwitch(slot),
-                onScoreboard: (show) => setIsScoreboardOpen(show),
-                onPause: () => setIsSettingsOpen(true)
-              });
+                const engine = new GameEngine(
+                  gameContainerRef.current,
+                  assignedMap,
+                  localController,
+                  settings,
+                  (hudData) => {
+                    setHudState(prev => ({
+                      ...prev,
+                      ...hudData,
+                      scoreRed: prev.scoreRed,
+                      scoreBlue: prev.scoreBlue,
+                      timeRemaining: prev.timeRemaining,
+                      killFeed: prev.killFeed
+                    }));
+                  }
+                );
 
-              gameEngineRef.current = engine;
-            }
+                engine.setLocalPlayerInfo(playerId, assignedTeam, userProfile.skinId, userProfile.weaponId);
+
+                engine.inputManager.setCallbacks({
+                  onPointerLockChange: (locked) => setIsPointerLocked(locked),
+                  onWeaponSwitch: (slot) => engine.handleWeaponSwitch(slot),
+                  onScoreboard: (show) => setIsScoreboardOpen(show),
+                  onPause: () => setIsSettingsOpen(true)
+                });
+
+                gameEngineRef.current = engine;
+              }
+            }, 100); // Wait for React to render the canvas
           }, 900);
         },
 
@@ -426,7 +441,12 @@ export default function App() {
   };
 
   return (
-    <div id="papernite-app" className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans select-none">
+    <div
+      id="papernite-app"
+      className={`relative w-screen ${
+        screen === 'playing' ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto '
+      } bg-slate-950 font-sans select-none`}
+    >
       
       {/* MOBILE ORIENTATION ENFORCER (16:9 Landscape) */}
       <MobileOrientationBlocker />
@@ -460,7 +480,7 @@ export default function App() {
               DOBRANDO O MAPA...
             </h2>
             <p className="text-sm font-bold text-amber-700 mt-1">
-              {MAPS[selectedMap]?.name} • Mata-Mata em Equipes (6 vs 6)
+              {(MAPS as any)[selectedMap]?.name || 'Arena Aleatória'} • Mata-Mata em Equipes (6 vs 6)
             </p>
 
             <div className="mt-6 p-3 bg-amber-200/80 rounded-2xl border-2 border-amber-300 text-xs font-semibold text-slate-800">

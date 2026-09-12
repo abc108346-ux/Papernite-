@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { BotDifficulty, MapId, Team } from '../types/game';
-import { MAPS } from '../game/constants';
+import { BotDifficulty, MapId, MapSelectionId, Team } from '../types/game';
+import { MAP_OPTIONS } from '../game/constants';
 import { soundManager } from '../game/audio/SoundManager';
-import { X, Play, Bot, Shield, Check, Compass, Zap } from 'lucide-react';
+import { X, Play, Bot, Shield, Check, Compass, Zap, Dice5 } from 'lucide-react';
 
 interface TrainingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStartTraining: (mapId: MapId, difficulty: BotDifficulty, team: Team) => void;
-  defaultMapId: MapId;
+  defaultMapId: MapSelectionId;
 }
 
 export const TrainingModal: React.FC<TrainingModalProps> = ({
@@ -17,7 +17,7 @@ export const TrainingModal: React.FC<TrainingModalProps> = ({
   onStartTraining,
   defaultMapId
 }) => {
-  const [selectedMap, setSelectedMap] = useState<MapId>(defaultMapId || 'paper_city');
+  const [selectedMap, setSelectedMap] = useState<MapSelectionId>(defaultMapId || 'paper_city');
   const [difficulty, setDifficulty] = useState<BotDifficulty>('medium');
   const [selectedTeam, setSelectedTeam] = useState<Team>('BLUE');
 
@@ -25,29 +25,40 @@ export const TrainingModal: React.FC<TrainingModalProps> = ({
 
   const handleStart = () => {
     soundManager.playButtonClick();
-    onStartTraining(selectedMap, difficulty, selectedTeam);
+    let actualMap: MapId;
+    if (selectedMap === 'random') {
+      const maps: MapId[] = ['paper_city', 'paper_factory', 'paper_island'];
+      actualMap = maps[Math.floor(Math.random() * maps.length)];
+    } else {
+      actualMap = selectedMap;
+    }
+    onStartTraining(actualMap, difficulty, selectedTeam);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="paper-card relative w-full max-w-lg rounded-3xl p-6 bg-[#fffdfa] border-4 border-slate-900 shadow-[8px_8px_0px_rgba(15,23,42,1)] text-slate-900 overflow-hidden">
+    <div
+      id="training-modal-overlay"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fadeIn"
+    >
+      <div className="paper-card relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-[#fffdfa] border-4 border-slate-900 shadow-[8px_8px_0px_rgba(15,23,42,1)] text-slate-900 overflow-hidden">
         
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b-2 border-slate-200">
+        {/* Header (Sticky) */}
+        <div className="sticky top-0 z-10 flex items-center justify-between p-4 sm:p-5 bg-[#fffdfa] border-b-2 border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-400 border-2 border-slate-900 flex items-center justify-center text-2xl shadow-sm">
+            <div className="w-11 h-11 rounded-2xl bg-amber-400 border-2 border-slate-900 flex items-center justify-center text-2xl shadow-sm">
               🤖
             </div>
             <div>
-              <h3 className="text-2xl font-black font-comic tracking-wide text-slate-950">
+              <h3 className="text-xl sm:text-2xl font-black font-comic tracking-wide text-slate-950">
                 MODO TREINAMENTO
               </h3>
               <p className="text-xs font-bold text-amber-700">
-                100% Offline • Jogue contra 11 Bots de Papel
+                100% Offline • Jogue contra 11 Bots com IA de Papel
               </p>
             </div>
           </div>
           <button
+            id="btn-close-training-modal"
             onClick={() => { soundManager.playButtonClick(); onClose(); }}
             className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-900 transition"
           >
@@ -55,23 +66,24 @@ export const TrainingModal: React.FC<TrainingModalProps> = ({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="mt-4 space-y-4">
-          {/* Difficulty Selection */}
+        {/* Scrollable Modal Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+          
+          {/* 1. Difficulty Selection */}
           <div>
             <label className="text-xs font-black text-slate-900 uppercase tracking-wider font-comic block mb-2">
-              Dificuldade dos Bots:
+              1. Dificuldade dos Bots:
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'easy', label: 'Fácil', desc: 'Reação suave, ideal para novatos', icon: '🟢' },
-                { id: 'medium', label: 'Médio', desc: 'Balanceado e competitivo', icon: '🟡' },
-                { id: 'hard', label: 'Difícil', desc: 'Miras rápidas e reflexos ágeis', icon: '🔴' }
+                { id: 'easy', label: 'Fácil', desc: 'Reação suave e miras lentas', icon: '🟢' },
+                { id: 'medium', label: 'Médio', desc: 'Competitivo e balanceado', icon: '🟡' },
+                { id: 'hard', label: 'Difícil', desc: 'Reflexos ágeis e mira precisa', icon: '🔴' }
               ].map((lvl) => (
                 <button
                   key={lvl.id}
                   onClick={() => { soundManager.playButtonClick(); setDifficulty(lvl.id as BotDifficulty); }}
-                  className={`p-3 rounded-2xl border-2 text-left transition relative ${
+                  className={`p-3 rounded-2xl border-2 text-left transition relative cursor-pointer ${
                     difficulty === lvl.id
                       ? 'border-slate-900 bg-amber-200/90 shadow-sm'
                       : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
@@ -83,54 +95,79 @@ export const TrainingModal: React.FC<TrainingModalProps> = ({
                       <Check className="w-4 h-4 text-slate-900 stroke-[3]" />
                     )}
                   </div>
-                  <h4 className="text-sm font-black text-slate-950 font-comic">{lvl.label}</h4>
+                  <h4 className="text-xs sm:text-sm font-black text-slate-950 font-comic">{lvl.label}</h4>
                   <p className="text-[10px] font-semibold text-slate-600 line-clamp-2 mt-0.5">{lvl.desc}</p>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Map Selection */}
+          {/* 2. Map Selection (4 Options including ALEATÓRIO) */}
           <div>
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider font-comic block mb-2">
-              Escolha a Arena de Dobradura:
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.values(MAPS).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => { soundManager.playButtonClick(); setSelectedMap(m.id); }}
-                  className={`p-3 rounded-2xl border-2 text-left transition relative ${
-                    selectedMap === m.id
-                      ? 'border-slate-900 bg-amber-200/90 shadow-sm'
-                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
-                  }`}
-                >
-                  <span className="text-xl mb-1 block">
-                    {m.id === 'paper_city' ? '🏙️' : m.id === 'paper_factory' ? '🏭' : '🏝️'}
-                  </span>
-                  <h4 className="text-xs font-black text-slate-950 font-comic">{m.name}</h4>
-                  {selectedMap === m.id && (
-                    <div className="absolute top-2 right-2 bg-slate-900 text-white rounded-full p-0.5">
-                      <Check className="w-3 h-3" />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-black text-slate-900 uppercase tracking-wider font-comic block">
+                2. Arena de Papel (4 Opções):
+              </label>
+              <span className="text-[11px] text-amber-700 font-bold">
+                Role para ver todos se necessário
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {(Object.keys(MAP_OPTIONS) as MapSelectionId[]).map((mKey) => {
+                const opt = MAP_OPTIONS[mKey];
+                const isCurrent = selectedMap === mKey;
+                return (
+                  <button
+                    key={mKey}
+                    id={`training-map-btn-${mKey}`}
+                    onClick={() => { soundManager.playButtonClick(); setSelectedMap(mKey); }}
+                    className={`p-3 rounded-2xl border-2 text-left transition relative flex items-center gap-3 cursor-pointer ${
+                      isCurrent
+                        ? 'border-slate-900 bg-amber-200/90 shadow-sm ring-2 ring-amber-400'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-300 flex items-center justify-center text-xl shrink-0">
+                      {mKey === 'paper_city' ? '🏙️' : mKey === 'paper_factory' ? '🏭' : mKey === 'paper_island' ? '🏝️' : '🎲'}
                     </div>
-                  )}
-                </button>
-              ))}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-black text-slate-950 font-comic truncate">
+                          {opt.name}
+                        </h4>
+                        <span className="text-[9px] px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded font-bold uppercase">
+                          {opt.theme}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-600 line-clamp-1 mt-0.5">
+                        {opt.shortDescription}
+                      </p>
+                    </div>
+
+                    {isCurrent && (
+                      <div className="w-6 h-6 rounded-full bg-slate-900 text-amber-300 flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Team Selection */}
+          {/* 3. Team Selection */}
           <div>
             <label className="text-xs font-black text-slate-900 uppercase tracking-wider font-comic block mb-2">
-              Sua Equipe:
+              3. Sua Equipe:
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => { soundManager.playButtonClick(); setSelectedTeam('BLUE'); }}
-                className={`p-3 rounded-2xl border-2 transition flex items-center justify-between ${
+                className={`p-3 rounded-2xl border-2 transition flex items-center justify-between cursor-pointer ${
                   selectedTeam === 'BLUE'
-                    ? 'border-blue-600 bg-blue-100 shadow-sm'
+                    ? 'border-blue-600 bg-blue-100 shadow-sm ring-2 ring-blue-400'
                     : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
                 }`}
               >
@@ -143,9 +180,9 @@ export const TrainingModal: React.FC<TrainingModalProps> = ({
 
               <button
                 onClick={() => { soundManager.playButtonClick(); setSelectedTeam('RED'); }}
-                className={`p-3 rounded-2xl border-2 transition flex items-center justify-between ${
+                className={`p-3 rounded-2xl border-2 transition flex items-center justify-between cursor-pointer ${
                   selectedTeam === 'RED'
-                    ? 'border-rose-600 bg-rose-100 shadow-sm'
+                    ? 'border-rose-600 bg-rose-100 shadow-sm ring-2 ring-rose-400'
                     : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
                 }`}
               >
@@ -157,17 +194,18 @@ export const TrainingModal: React.FC<TrainingModalProps> = ({
               </button>
             </div>
           </div>
+
         </div>
 
-        {/* Action Button */}
-        <div className="mt-6 pt-4 border-t-2 border-slate-200">
+        {/* Footer Action Button (Sticky) */}
+        <div className="sticky bottom-0 z-10 p-4 sm:p-5 bg-[#fffdfa] border-t-2 border-slate-200">
           <button
             id="btn-start-training"
             onClick={handleStart}
-            className="w-full py-4 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-comic font-black text-lg border-3 border-slate-900 shadow-[4px_4px_0px_rgba(15,23,42,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-3 transition"
+            className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-comic font-black text-base sm:text-lg border-3 border-slate-900 shadow-[4px_4px_0px_rgba(15,23,42,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-3 transition cursor-pointer"
           >
             <Play className="w-6 h-6 fill-current" />
-            <span>INICIAR TREINAMENTO (OFFLINE)</span>
+            <span>INICIAR TREINAMENTO OFFLINE</span>
           </button>
         </div>
 

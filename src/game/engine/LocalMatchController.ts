@@ -19,6 +19,7 @@ export class LocalMatchController {
   private loopInterval: any = null;
   private lastTickTime: number = Date.now();
   private isDestroyed = false;
+  private collisionBoxes: any[];
 
   constructor(
     mapId: MapId,
@@ -35,6 +36,7 @@ export class LocalMatchController {
     const mapData = PaperMapsBuilder.buildMap(mapId);
     this.spawnsRed = mapData.spawnsRed;
     this.spawnsBlue = mapData.spawnsBlue;
+    this.collisionBoxes = mapData.collisionBoxes;
 
     const initialSpawn = playerInfo.team === 'RED'
       ? this.spawnsRed[0] || { x: 0, y: 0.1, z: 0 }
@@ -202,6 +204,47 @@ export class LocalMatchController {
     );
   }
 
+  private hasLineOfSight(origin: Vector3D, targetPos: Vector3D, collisionBoxes: any[]): boolean {
+    const dx = targetPos.x - origin.x;
+    const dy = targetPos.y - origin.y;
+    const dz = targetPos.z - origin.z;
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist === 0) return true;
+
+    const dirX = dx / dist;
+    const dirY = dy / dist;
+    const dirZ = dz / dist;
+
+    for (const box of collisionBoxes) {
+      // Ray-AABB intersection
+      const t1 = (box.min.x - origin.x) / (dirX || 0.00001);
+      const t2 = (box.max.x - origin.x) / (dirX || 0.00001);
+      const t3 = (box.min.y - origin.y) / (dirY || 0.00001);
+      const t4 = (box.max.y - origin.y) / (dirY || 0.00001);
+      const t5 = (box.min.z - origin.z) / (dirZ || 0.00001);
+      const t6 = (box.max.z - origin.z) / (dirZ || 0.00001);
+
+      const tMin = Math.max(
+        Math.max(Math.min(t1, t2), Math.min(t3, t4)),
+        Math.min(t5, t6)
+      );
+      const tMax = Math.min(
+        Math.min(Math.max(t1, t2), Math.max(t3, t4)),
+        Math.max(t5, t6)
+      );
+
+      // if tMax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
+      // if tMin > tMax, ray doesn't intersect AABB
+      if (tMax >= 0 && tMin <= tMax) {
+        // Intersects! Is it between origin and target?
+        if (tMin < dist && tMin > 0.1) {
+          return false; // blocked
+        }
+      }
+    }
+    return true; // not blocked
+  }
+
   private processBotHitRaycast(shooter: PlayerNetworkState, origin: Vector3D, dir: Vector3D, weapon: any) {
     for (const target of Object.values(this.state.players)) {
       if (target.id === shooter.id || target.team === shooter.team || target.isDead) continue;
@@ -219,6 +262,12 @@ export class LocalMatchController {
 
       // Hit threshold
       if (dot > 0.985) {
+        // Line of sight check
+        const targetCenter = { x: target.pos.x, y: target.pos.y + 0.8, z: target.pos.z };
+        if (!this.hasLineOfSight(origin, targetCenter, this.collisionBoxes)) {
+           continue; // blocked by wall
+        }
+
         const isHeadshot = dy > 1.2;
         const damage = isHeadshot ? Math.round(weapon.damage * 1.5) : weapon.damage;
         this.applyDamage(shooter.id, target.id, damage, isHeadshot, { x: target.pos.x, y: target.pos.y + 1, z: target.pos.z });

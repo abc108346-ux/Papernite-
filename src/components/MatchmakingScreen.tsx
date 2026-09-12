@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { MatchmakingQueueState, MapId } from '../types/game';
-import { MAPS } from '../game/constants';
+import { MatchmakingQueueState, MapSelectionId } from '../types/game';
+import { MAP_OPTIONS } from '../game/constants';
 import { soundManager } from '../game/audio/SoundManager';
 import { Users, X, Shield, Clock, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface MatchmakingScreenProps {
   queueState: MatchmakingQueueState;
-  selectedMap: MapId;
+  selectedMap: MapSelectionId;
   playerName: string;
   onCancel: () => void;
 }
@@ -33,7 +33,7 @@ export const MatchmakingScreen: React.FC<MatchmakingScreenProps> = ({
     return `${m}:${s}`;
   };
 
-  const mapInfo = MAPS[selectedMap] || MAPS.paper_city;
+  const mapInfo = MAP_OPTIONS[selectedMap] || MAP_OPTIONS.paper_city;
   const isMatchFound = queueState.status === 'match_found' || queueState.countdown <= 1;
 
   return (

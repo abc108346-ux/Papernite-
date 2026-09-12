@@ -22,6 +22,8 @@ try {
   isFirebaseConfigured = false;
 }
 
+export { app as firebaseApp, auth };
+
 const LOCAL_STORAGE_PROFILE_KEY = 'papernite_user_profile';
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -42,6 +44,10 @@ const DEFAULT_PROFILE: UserProfile = {
 export class AuthService {
   public static isConfigured(): boolean {
     return isFirebaseConfigured;
+  }
+  
+  public static getCurrentUser(): User | null {
+    return auth ? auth.currentUser : null;
   }
 
   public static getInitialProfile(): UserProfile {

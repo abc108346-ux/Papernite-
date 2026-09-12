@@ -1,4 +1,4 @@
-import { WeaponDef, SkinDef, MapId, GraphicsSettings } from '../types/game';
+import { WeaponDef, SkinDef, MapId, MapSelectionId, GraphicsSettings } from '../types/game';
 
 export const DEFAULT_SETTINGS: GraphicsSettings = {
   preset: 'medium',
@@ -213,6 +213,70 @@ export const MAPS: Record<MapId, MapInfo> = {
     groundColor: '#fde68a',
     accentColor: '#10b981',
     gridSize: 85
+  }
+};
+
+export interface MapOptionInfo {
+  id: MapSelectionId;
+  name: string;
+  subtitle: string;
+  theme: string;
+  shortDescription: string;
+  description: string;
+  tacticalTip: string;
+  ambientColor: string;
+  accentColor: string;
+  badge: string;
+}
+
+export const MAP_OPTIONS: Record<MapSelectionId, MapOptionInfo> = {
+  paper_city: {
+    id: 'paper_city',
+    name: 'Paper City',
+    subtitle: 'Metrópole de Cartolina',
+    theme: 'Urbano Cartoon',
+    shortDescription: 'Ruas com faixas desenhadas, casinhas de papel colorido, carros de caixinha e esquinas táticas.',
+    description: 'Bairro residencial feito de cartolina colorida dobrada. Oferece combate equilibrado com esquinas de caixas de papelão e telhados para franco-atiradores.',
+    tacticalTip: 'Use as esquinas das casas dobradas para emboscadas de curta e média distância.',
+    ambientColor: '#fef08a',
+    accentColor: '#3b82f6',
+    badge: 'Popular'
+  },
+  paper_factory: {
+    id: 'paper_factory',
+    name: 'Paper Factory',
+    subtitle: 'Fábrica Abandonada',
+    theme: 'Industrial Craft',
+    shortDescription: 'Rolos gigantes de celulose, esteiras de papelão, plataformas elevadas e corredores de alta rotação.',
+    description: 'Complexo industrial feito de papel kraft e papelão ondulado. Possui esteiras transportadoras, passarelas altas e coberturas estreitas.',
+    tacticalTip: 'Aproveite as passarelas superiores para dominar o campo de visão dos corredores.',
+    ambientColor: '#fed7aa',
+    accentColor: '#f97316',
+    badge: 'Vertical'
+  },
+  paper_island: {
+    id: 'paper_island',
+    name: 'Paper Island',
+    subtitle: 'Ilha Tropical Origami',
+    theme: 'Praia & Aventura',
+    shortDescription: 'Coqueiros de cartolina verde, praia de papel craft, pontes de madeira dobrada e mar azul origami.',
+    description: 'Arquipélago tropical de papel cartão recortado. Ilhas conectadas por pontes estreitas de madeira dobrada sob um céu ensolarado.',
+    tacticalTip: 'Controle as pontes centrais e aproveite a linha de visão ampla para rifles e snipers.',
+    ambientColor: '#fef9c3',
+    accentColor: '#10b981',
+    badge: 'Campo Aberto'
+  },
+  random: {
+    id: 'random',
+    name: 'Aleatório',
+    subtitle: 'Sorteio Imprevisível',
+    theme: 'Seleção Automática',
+    shortDescription: 'Deixe o sistema sortear aleatoriamente entre Paper City, Paper Factory e Paper Island na hora da partida.',
+    description: 'Modo para jogadores versáteis que dominam qualquer arena. O servidor sorteia o mapa ideal antes do início do confronto.',
+    tacticalTip: 'Esteja preparado para qualquer estilo de combate e equipe uma arma flexível como o Fuzil de Cartolina.',
+    ambientColor: '#e0e7ff',
+    accentColor: '#8b5cf6',
+    badge: 'Surpresa'
   }
 };
 

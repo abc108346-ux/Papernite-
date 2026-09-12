@@ -1,6 +1,7 @@
 export type Team = 'RED' | 'BLUE';
 
 export type MapId = 'paper_city' | 'paper_factory' | 'paper_island';
+export type MapSelectionId = MapId | 'random';
 
 export type BotDifficulty = 'easy' | 'medium' | 'hard';
 

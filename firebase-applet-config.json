@@ -1,9 +1,12 @@
 {
-  "apiKey": "",
-  "authDomain": "paper-nite.firebaseapp.com",
-  "projectId": "paper-nite",
-  "storageBucket": "paper-nite.appspot.com",
-  "messagingSenderId": "",
-  "appId": "",
-  "firestoreDatabaseId": "(default)"
+  "projectId": "skilful-tide-4q6d2",
+  "appId": "1:972749644498:web:a3c789fcbe9a9a9d0a830b",
+  "apiKey": "AIzaSyBdgwB32aGI6NbC0bAsLNjFIjEge4NzUSk",
+  "authDomain": "skilful-tide-4q6d2.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-papernite-e8a6e416-81e3-48b3-a7d7-c13533360de3",
+  "storageBucket": "skilful-tide-4q6d2.firebasestorage.app",
+  "messagingSenderId": "972749644498",
+  "measurementId": "",
+  "oAuthClientId": "972749644498-lsb2orqfvm7crph9th701lvppa8k8m01.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

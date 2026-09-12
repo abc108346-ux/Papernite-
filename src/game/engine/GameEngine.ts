@@ -296,27 +296,47 @@ export class GameEngine {
       weapon.range
     );
 
-    const enemyMeshes: THREE.Object3D[] = [];
+    const checkMeshes: THREE.Object3D[] = [];
     const meshToId: Map<THREE.Object3D, string> = new Map();
 
     this.remotePlayerMeshes.forEach((item, id) => {
       // Find character root
-      enemyMeshes.push(item.mesh);
+      checkMeshes.push(item.mesh);
       meshToId.set(item.mesh, id);
     });
 
-    const intersects = raycaster.intersectObjects(enemyMeshes, true);
+    if (this.currentMapGroup) {
+      checkMeshes.push(this.currentMapGroup);
+    }
+
+    const intersects = raycaster.intersectObjects(checkMeshes, true);
     if (intersects.length > 0) {
       const hit = intersects[0];
       // Walk up to find root group
       let curr: THREE.Object3D | null = hit.object;
       let targetId: string | null = null;
+      let hitMap = false;
+
       while (curr) {
         if (meshToId.has(curr)) {
           targetId = meshToId.get(curr)!;
           break;
         }
+        if (curr === this.currentMapGroup) {
+          hitMap = true;
+          break;
+        }
         curr = curr.parent;
+      }
+
+      if (hitMap) {
+        // We hit a wall. Spawn impact effect but no damage.
+        this.projectilesManager.spawnPaperImpact({
+          x: hit.point.x,
+          y: hit.point.y,
+          z: hit.point.z
+        }, 12);
+        return; // Ray blocked!
       }
 
       if (targetId) {
@@ -370,6 +390,20 @@ export class GameEngine {
 
     for (const p of Object.values(players)) {
       if (p.id === this.localPlayerId) {
+        // Did we just respawn?
+        if (this.isDead && !p.isDead) {
+          // Teleport to spawn point assigned by server/controller
+          this.position.set(p.pos.x, p.pos.y, p.pos.z);
+          this.velocity.set(0, 0, 0);
+          this.yaw = p.rotY || 0;
+          this.pitch = 0;
+          this.camera.rotation.set(0, 0, 0);
+          
+          const wep = WEAPONS[this.localWeaponId] || WEAPONS.rifle;
+          this.currentAmmo = wep.ammoCapacity;
+          this.isReloading = false;
+        }
+        
         // Sync my own health if damaged
         this.health = p.health;
         this.isDead = p.isDead;

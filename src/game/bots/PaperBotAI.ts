@@ -8,6 +8,7 @@ export class PaperBotAI {
   private waypoints: Vector3D[];
   private currentWaypointIdx = 0;
   private targetPlayerId: string | null = null;
+  private targetLostTimer: number = 0;
   private collisionBoxes: CollisionBox[];
 
   private shootCooldown = 0;
@@ -42,6 +43,12 @@ export class PaperBotAI {
     this.thinkTimer -= delta;
     this.shootCooldown -= delta;
     this.strafeTimer -= delta;
+    if (this.targetLostTimer > 0) {
+      this.targetLostTimer -= delta;
+      if (this.targetLostTimer <= 0) {
+        this.targetPlayerId = null;
+      }
+    }
 
     if (this.reloadCooldown > 0) {
       this.reloadCooldown -= delta;
@@ -103,7 +110,7 @@ export class PaperBotAI {
       }
 
       // Shooting logic
-      if (dist < weapon.range && this.shootCooldown <= 0 && this.reloadCooldown <= 0) {
+      if (dist < weapon.range && this.shootCooldown <= 0 && this.reloadCooldown <= 0 && this.hasLineOfSight(target.pos)) {
         if (this.currentAmmo > 0) {
           // Add human-like aim imperfection based on difficulty
           const spreadMult = this.difficulty === 'hard' ? 0.6 : this.difficulty === 'easy' ? 2.4 : 1.2;
@@ -196,22 +203,82 @@ export class PaperBotAI {
     if (canMoveZ) this.data.pos.z = nextZ;
   }
 
+  private hasLineOfSight(targetPos: Vector3D): boolean {
+    const origin = { x: this.data.pos.x, y: this.data.pos.y + 1.2, z: this.data.pos.z };
+    const target = { x: targetPos.x, y: targetPos.y + 0.8, z: targetPos.z };
+    
+    const dx = target.x - origin.x;
+    const dy = target.y - origin.y;
+    const dz = target.z - origin.z;
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist === 0) return true;
+
+    const dirX = dx / dist;
+    const dirY = dy / dist;
+    const dirZ = dz / dist;
+
+    for (const box of this.collisionBoxes) {
+      const t1 = (box.min.x - origin.x) / (dirX || 0.00001);
+      const t2 = (box.max.x - origin.x) / (dirX || 0.00001);
+      const t3 = (box.min.y - origin.y) / (dirY || 0.00001);
+      const t4 = (box.max.y - origin.y) / (dirY || 0.00001);
+      const t5 = (box.min.z - origin.z) / (dirZ || 0.00001);
+      const t6 = (box.max.z - origin.z) / (dirZ || 0.00001);
+
+      const tMin = Math.max(
+        Math.max(Math.min(t1, t2), Math.min(t3, t4)),
+        Math.min(t5, t6)
+      );
+      const tMax = Math.min(
+        Math.min(Math.max(t1, t2), Math.max(t3, t4)),
+        Math.max(t5, t6)
+      );
+
+      if (tMax >= 0 && tMin <= tMax) {
+        if (tMin < dist && tMin > 0.1) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   private findTarget(allPlayers: Record<string, PlayerNetworkState>) {
     let closestId: string | null = null;
     let closestDist = 38; // Max vision range
 
-    for (const p of Object.values(allPlayers)) {
-      if (p.id === this.data.id || p.team === this.data.team || p.isDead) continue;
+    // Also check current target first to keep focus if still visible
+    if (this.targetPlayerId && allPlayers[this.targetPlayerId] && !allPlayers[this.targetPlayerId].isDead) {
+      const p = allPlayers[this.targetPlayerId];
       const dx = p.pos.x - this.data.pos.x;
       const dz = p.pos.z - this.data.pos.z;
       const dist = Math.hypot(dx, dz);
-
-      if (dist < closestDist) {
+      if (dist < closestDist && this.hasLineOfSight(p.pos)) {
+        closestId = this.targetPlayerId;
         closestDist = dist;
-        closestId = p.id;
       }
     }
 
-    this.targetPlayerId = closestId;
+    // Only scan others if current target is lost or null
+    if (!closestId) {
+      for (const p of Object.values(allPlayers)) {
+        if (p.id === this.data.id || p.team === this.data.team || p.isDead) continue;
+        const dx = p.pos.x - this.data.pos.x;
+        const dz = p.pos.z - this.data.pos.z;
+        const dist = Math.hypot(dx, dz);
+
+        if (dist < closestDist) {
+          if (this.hasLineOfSight(p.pos)) {
+            closestDist = dist;
+            closestId = p.id;
+          }
+        }
+      }
+    }
+
+    if (closestId) {
+      this.targetPlayerId = closestId;
+      this.targetLostTimer = 3.0; // remember for 3 seconds
+    }
   }
 }
