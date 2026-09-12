@@ -9,11 +9,12 @@ export class PaperBotAI {
   private currentWaypointIdx = 0;
   private targetPlayerId: string | null = null;
   private targetLostTimer: number = 0;
+  private reactionTimer: number = 0;
   private collisionBoxes: CollisionBox[];
 
   private shootCooldown = 0;
   private reloadCooldown = 0;
-  private currentAmmo = 20;
+  private currentAmmo = 25;
   private strafeDir = 1;
   private strafeTimer = 0;
   private thinkTimer = 0;
@@ -28,7 +29,7 @@ export class PaperBotAI {
     this.waypoints = waypoints;
     this.collisionBoxes = collisionBoxes;
     this.difficulty = difficulty;
-    this.currentWaypointIdx = Math.floor(Math.random() * (waypoints.length || 1));
+    this.currentWaypointIdx = Math.floor(Math.random() * Math.max(1, waypoints.length));
     const weapon = WEAPONS[data.weaponId] || WEAPONS.rifle;
     this.currentAmmo = weapon.ammoCapacity;
   }
@@ -43,6 +44,8 @@ export class PaperBotAI {
     this.thinkTimer -= delta;
     this.shootCooldown -= delta;
     this.strafeTimer -= delta;
+    if (this.reactionTimer > 0) this.reactionTimer -= delta;
+
     if (this.targetLostTimer > 0) {
       this.targetLostTimer -= delta;
       if (this.targetLostTimer <= 0) {
@@ -50,6 +53,7 @@ export class PaperBotAI {
       }
     }
 
+    // Reload management
     if (this.reloadCooldown > 0) {
       this.reloadCooldown -= delta;
       this.data.isReloading = true;
@@ -60,16 +64,16 @@ export class PaperBotAI {
       }
     }
 
-    // Periodic AI thinking (scan for enemy) based on difficulty
+    // Periodic AI thinking / enemy search
     if (this.thinkTimer <= 0) {
-      const scanInterval = this.difficulty === 'hard' ? 0.12 : this.difficulty === 'easy' ? 0.45 : 0.22;
-      this.thinkTimer = scanInterval + Math.random() * 0.1;
+      const scanInterval = this.difficulty === 'hard' ? 0.12 : this.difficulty === 'easy' ? 0.35 : 0.2;
+      this.thinkTimer = scanInterval;
       this.findTarget(allPlayers);
     }
 
     const weapon = WEAPONS[this.data.weaponId] || WEAPONS.rifle;
 
-    // If has target
+    // ACTIVE COMBAT STATE
     if (this.targetPlayerId && allPlayers[this.targetPlayerId] && !allPlayers[this.targetPlayerId].isDead) {
       const target = allPlayers[this.targetPlayerId];
       const dx = target.pos.x - this.data.pos.x;
@@ -78,50 +82,55 @@ export class PaperBotAI {
 
       // Aim at target
       const targetAngle = Math.atan2(dx, dz);
-      // Smoothly rotate yaw toward target with difficulty scaling
       let diff = targetAngle - this.data.rotY;
       while (diff < -Math.PI) diff += Math.PI * 2;
       while (diff > Math.PI) diff -= Math.PI * 2;
 
-      const turnRate = this.difficulty === 'hard' ? 12 : this.difficulty === 'easy' ? 4 : 8;
+      const turnRate = this.difficulty === 'hard' ? 14 : this.difficulty === 'easy' ? 5 : 9;
       this.data.rotY += diff * Math.min(1, delta * turnRate);
 
-      const dy = target.pos.y - this.data.pos.y;
-      this.data.pitch = Math.atan2(dy, dist);
+      const dy = (target.pos.y + 0.8) - (this.data.pos.y + 1.2);
+      this.data.pitch = Math.atan2(dy, Math.max(0.1, dist));
 
-      // Strafe behavior during combat
+      // Strafe timer
       if (this.strafeTimer <= 0) {
-        this.strafeTimer = this.difficulty === 'hard' ? (0.6 + Math.random() * 0.8) : (1.0 + Math.random() * 1.5);
+        this.strafeTimer = 1.0 + Math.random() * 1.5;
         this.strafeDir = Math.random() > 0.5 ? 1 : -1;
       }
 
-      // Move toward target if far, or strafe if in range
-      const baseSpeed = this.difficulty === 'hard' ? 4.8 : this.difficulty === 'easy' ? 3.6 : 4.2;
+      // Movement: advance to weapon range or strafe
+      const baseSpeed = this.difficulty === 'hard' ? 5.2 : this.difficulty === 'easy' ? 3.8 : 4.4;
       if (dist > 18) {
-        // Walk closer
+        // Advance towards target
         this.move(Math.sin(this.data.rotY) * baseSpeed * delta, Math.cos(this.data.rotY) * baseSpeed * delta);
-      } else if (dist < 6) {
-        // Back off slightly
-        this.move(-Math.sin(this.data.rotY) * baseSpeed * 0.6 * delta, -Math.cos(this.data.rotY) * baseSpeed * 0.6 * delta);
+      } else if (dist < 4) {
+        // Back off slightly if too close
+        this.move(-Math.sin(this.data.rotY) * baseSpeed * 0.5 * delta, -Math.cos(this.data.rotY) * baseSpeed * 0.5 * delta);
       } else {
-        // Strafe
+        // Tactical strafe around target
         const strafeAngle = this.data.rotY + (Math.PI / 2) * this.strafeDir;
-        this.move(Math.sin(strafeAngle) * baseSpeed * 0.7 * delta, Math.cos(strafeAngle) * baseSpeed * 0.7 * delta);
+        this.move(Math.sin(strafeAngle) * baseSpeed * 0.65 * delta, Math.cos(strafeAngle) * baseSpeed * 0.65 * delta);
       }
 
-      // Shooting logic
-      if (dist < weapon.range && this.shootCooldown <= 0 && this.reloadCooldown <= 0 && this.hasLineOfSight(target.pos)) {
+      // Line of Sight & Shooting
+      const hasLOS = this.hasLineOfSight(target.pos);
+      if (hasLOS) {
+        this.targetLostTimer = 2.5; // refresh sight
+      }
+
+      if (dist < weapon.range && hasLOS && this.reactionTimer <= 0 && this.shootCooldown <= 0 && this.reloadCooldown <= 0) {
         if (this.currentAmmo > 0) {
-          // Add human-like aim imperfection based on difficulty
-          const spreadMult = this.difficulty === 'hard' ? 0.6 : this.difficulty === 'easy' ? 2.4 : 1.2;
+          // Calculate shot direction with realistic spread for medium difficulty
+          const spreadMult = this.difficulty === 'hard' ? 0.5 : this.difficulty === 'easy' ? 1.8 : 1.0;
           const jitterX = (Math.random() - 0.5) * weapon.spread * spreadMult;
           const jitterY = (Math.random() - 0.5) * weapon.spread * spreadMult;
           const jitterZ = (Math.random() - 0.5) * weapon.spread * spreadMult;
 
+          const totalDist = Math.hypot(dx, dy, dz);
           const dir: Vector3D = {
-            x: (dx / dist) + jitterX,
-            y: (dy / dist) + jitterY,
-            z: (dz / dist) + jitterZ
+            x: (dx / totalDist) + jitterX,
+            y: (dy / totalDist) + jitterY,
+            z: (dz / totalDist) + jitterZ
           };
           const len = Math.hypot(dir.x, dir.y, dir.z);
           dir.x /= len;
@@ -130,7 +139,7 @@ export class PaperBotAI {
 
           const origin: Vector3D = {
             x: this.data.pos.x,
-            y: this.data.pos.y + 1.5,
+            y: this.data.pos.y + 1.2,
             z: this.data.pos.z
           };
 
@@ -139,7 +148,7 @@ export class PaperBotAI {
           this.shootCooldown = 60 / weapon.fireRate;
           this.data.isShooting = true;
         } else {
-          // Reload
+          // Magazine empty: initiate reload
           this.reloadCooldown = weapon.reloadTime;
           this.data.isShooting = false;
         }
@@ -148,7 +157,7 @@ export class PaperBotAI {
       }
 
     } else {
-      // No target: Patrol waypoints
+      // PATROL STATE: Move between waypoints
       this.data.isShooting = false;
       if (this.waypoints.length > 0) {
         const wp = this.waypoints[this.currentWaypointIdx];
@@ -157,7 +166,6 @@ export class PaperBotAI {
         const dist = Math.hypot(dx, dz);
 
         if (dist < 2.0) {
-          // Reached waypoint, pick next
           this.currentWaypointIdx = (this.currentWaypointIdx + 1) % this.waypoints.length;
         } else {
           const targetAngle = Math.atan2(dx, dz);
@@ -177,10 +185,9 @@ export class PaperBotAI {
     const nextX = this.data.pos.x + dx;
     const nextZ = this.data.pos.z + dz;
 
-    // Simple AABB obstacle collision check
     let canMoveX = true;
     let canMoveZ = true;
-    const r = 0.4;
+    const r = 0.5;
 
     for (const box of this.collisionBoxes) {
       if (
@@ -203,64 +210,89 @@ export class PaperBotAI {
     if (canMoveZ) this.data.pos.z = nextZ;
   }
 
-  private hasLineOfSight(targetPos: Vector3D): boolean {
+  public hasLineOfSight(targetPos: Vector3D): boolean {
     const origin = { x: this.data.pos.x, y: this.data.pos.y + 1.2, z: this.data.pos.z };
     const target = { x: targetPos.x, y: targetPos.y + 0.8, z: targetPos.z };
-    
+
     const dx = target.x - origin.x;
     const dy = target.y - origin.y;
     const dz = target.z - origin.z;
     const dist = Math.hypot(dx, dy, dz);
-    if (dist === 0) return true;
+    if (dist <= 0.2) return true;
 
     const dirX = dx / dist;
     const dirY = dy / dist;
     const dirZ = dz / dist;
 
+    // Ray-AABB intersection test for each collision box
     for (const box of this.collisionBoxes) {
-      const t1 = (box.min.x - origin.x) / (dirX || 0.00001);
-      const t2 = (box.max.x - origin.x) / (dirX || 0.00001);
-      const t3 = (box.min.y - origin.y) / (dirY || 0.00001);
-      const t4 = (box.max.y - origin.y) / (dirY || 0.00001);
-      const t5 = (box.min.z - origin.z) / (dirZ || 0.00001);
-      const t6 = (box.max.z - origin.z) / (dirZ || 0.00001);
+      let tMin = 0.0001;
+      let tMax = dist - 0.2;
 
-      const tMin = Math.max(
-        Math.max(Math.min(t1, t2), Math.min(t3, t4)),
-        Math.min(t5, t6)
-      );
-      const tMax = Math.min(
-        Math.min(Math.max(t1, t2), Math.max(t3, t4)),
-        Math.max(t5, t6)
-      );
-
-      if (tMax >= 0 && tMin <= tMax) {
-        if (tMin < dist && tMin > 0.1) {
-          return false;
-        }
+      // X
+      if (Math.abs(dirX) < 1e-6) {
+        if (origin.x < box.min.x || origin.x > box.max.x) continue;
+      } else {
+        const invD = 1.0 / dirX;
+        let t0 = (box.min.x - origin.x) * invD;
+        let t1 = (box.max.x - origin.x) * invD;
+        if (invD < 0.0) { const temp = t0; t0 = t1; t1 = temp; }
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+        if (tMax <= tMin) continue;
       }
+
+      // Y
+      if (Math.abs(dirY) < 1e-6) {
+        if (origin.y < box.min.y || origin.y > box.max.y) continue;
+      } else {
+        const invD = 1.0 / dirY;
+        let t0 = (box.min.y - origin.y) * invD;
+        let t1 = (box.max.y - origin.y) * invD;
+        if (invD < 0.0) { const temp = t0; t0 = t1; t1 = temp; }
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+        if (tMax <= tMin) continue;
+      }
+
+      // Z
+      if (Math.abs(dirZ) < 1e-6) {
+        if (origin.z < box.min.z || origin.z > box.max.z) continue;
+      } else {
+        const invD = 1.0 / dirZ;
+        let t0 = (box.min.z - origin.z) * invD;
+        let t1 = (box.max.z - origin.z) * invD;
+        if (invD < 0.0) { const temp = t0; t0 = t1; t1 = temp; }
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+        if (tMax <= tMin) continue;
+      }
+
+      // If we got here, ray intersects this obstacle between origin and target!
+      return false;
     }
+
     return true;
   }
 
   private findTarget(allPlayers: Record<string, PlayerNetworkState>) {
-    let closestId: string | null = null;
-    let closestDist = 38; // Max vision range
+    let bestTargetId: string | null = null;
+    let closestDist = 42; // Vision range
 
-    // Also check current target first to keep focus if still visible
+    // Check existing target first
     if (this.targetPlayerId && allPlayers[this.targetPlayerId] && !allPlayers[this.targetPlayerId].isDead) {
       const p = allPlayers[this.targetPlayerId];
       const dx = p.pos.x - this.data.pos.x;
       const dz = p.pos.z - this.data.pos.z;
       const dist = Math.hypot(dx, dz);
       if (dist < closestDist && this.hasLineOfSight(p.pos)) {
-        closestId = this.targetPlayerId;
+        bestTargetId = this.targetPlayerId;
         closestDist = dist;
       }
     }
 
-    // Only scan others if current target is lost or null
-    if (!closestId) {
+    // Scan for all other enemy players/bots
+    if (!bestTargetId) {
       for (const p of Object.values(allPlayers)) {
         if (p.id === this.data.id || p.team === this.data.team || p.isDead) continue;
         const dx = p.pos.x - this.data.pos.x;
@@ -270,15 +302,16 @@ export class PaperBotAI {
         if (dist < closestDist) {
           if (this.hasLineOfSight(p.pos)) {
             closestDist = dist;
-            closestId = p.id;
+            bestTargetId = p.id;
           }
         }
       }
     }
 
-    if (closestId) {
-      this.targetPlayerId = closestId;
-      this.targetLostTimer = 3.0; // remember for 3 seconds
+    if (bestTargetId && bestTargetId !== this.targetPlayerId) {
+      this.targetPlayerId = bestTargetId;
+      this.targetLostTimer = 3.0;
+      this.reactionTimer = this.difficulty === 'hard' ? 0.15 : this.difficulty === 'easy' ? 0.45 : 0.28;
     }
   }
 }

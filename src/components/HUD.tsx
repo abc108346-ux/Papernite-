@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { HUDData } from '../game/engine/GameEngine';
 import { WEAPONS } from '../game/constants';
 import { Crosshair, Shield, RefreshCw, Zap, Users, Volume2 } from 'lucide-react';
@@ -23,25 +23,64 @@ export const HUD: React.FC<HUDProps> = ({
   onReload,
   onOpenScoreboard
 }) => {
-  const [joyOffset, setJoyOffset] = React.useState({ x: 0, y: 0 });
-  const isMobile = inputManager?.isMobile();
+  const [joyOffset, setJoyOffset] = useState({ x: 0, y: 0 });
+  const isMobile = inputManager?.isMobile() || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   const weapon = WEAPONS[hud.weaponId] || WEAPONS.rifle;
+
+  // Touch tracking refs to completely isolate movement and camera look
+  const joystickTouchIdRef = useRef<number | null>(null);
+  const lookTouchIdRef = useRef<number | null>(null);
+  const lastLookPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Format time (mm:ss)
   const minutes = Math.floor(hud.timeRemaining / 60);
   const seconds = hud.timeRemaining % 60;
   const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
+  // Joystick touch handlers
+  const updateJoystick = (touch: React.Touch, element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const radius = rect.width / 2;
+
+    const rawDx = touch.clientX - centerX;
+    const rawDy = touch.clientY - centerY;
+    const dist = Math.hypot(rawDx, rawDy);
+    const clampedDist = Math.min(dist, radius);
+    const angle = Math.atan2(rawDy, rawDx);
+
+    const clampedX = (Math.cos(angle) * clampedDist) / radius;
+    const clampedY = (Math.sin(angle) * clampedDist) / radius;
+
+    if (inputManager) {
+      inputManager.touchJoystick.active = true;
+      inputManager.touchJoystick.x = clampedX;
+      inputManager.touchJoystick.y = clampedY;
+    }
+    setJoyOffset({ x: clampedX * 36, y: clampedY * 36 });
+  };
+
+  const resetJoystick = () => {
+    joystickTouchIdRef.current = null;
+    if (inputManager) {
+      inputManager.touchJoystick.active = false;
+      inputManager.touchJoystick.x = 0;
+      inputManager.touchJoystick.y = 0;
+    }
+    setJoyOffset({ x: 0, y: 0 });
+  };
+
   return (
     <div id="game-hud-root" className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between overflow-hidden">
       
       {/* Damage Flash Red Vignette */}
       {hud.health < 35 && !hud.isDead && (
-        <div className="absolute inset-0 border-8 border-red-500/40 animate-pulse pointer-events-none" />
+        <div className="absolute inset-0 border-8 border-red-500/40 animate-pulse pointer-events-none z-10" />
       )}
 
       {/* TOP HEADER: Match Scoreboard & Timer */}
-      <header id="hud-top-bar" className="w-full flex items-center justify-between px-3 sm:px-6 pt-3 sm:pt-4">
+      <header id="hud-top-bar" className="w-full flex items-center justify-between px-3 sm:px-6 pt-3 sm:pt-4 z-20">
         {/* Blue Team Score (Left) */}
         <div className="flex items-center gap-2 sm:gap-3 bg-blue-600/95 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl shadow-lg border-2 border-blue-300">
           <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider font-comic">TIME AZUL</span>
@@ -62,7 +101,7 @@ export const HUD: React.FC<HUDProps> = ({
           <button
             id="hud-scoreboard-btn"
             onClick={onOpenScoreboard}
-            className="mt-1 pointer-events-auto bg-slate-900/85 hover:bg-slate-900 text-amber-300 text-[11px] px-3 py-0.5 rounded-full border border-slate-700 flex items-center gap-1 shadow transition"
+            className="mt-1 pointer-events-auto bg-slate-900/85 hover:bg-slate-900 text-amber-300 text-[11px] px-3 py-0.5 rounded-full border border-slate-700 flex items-center gap-1 shadow transition cursor-pointer"
           >
             <Users className="w-3 h-3" />
             <span>Placar Geral (TAB)</span>
@@ -77,80 +116,74 @@ export const HUD: React.FC<HUDProps> = ({
       </header>
 
       {/* KILL FEED (Top Right) */}
-      <div id="hud-kill-feed" className="absolute top-20 right-4 flex flex-col gap-1.5 max-w-xs">
-        {hud.killFeed.map((kf, i) => (
+      <div id="hud-kill-feed" className="absolute top-20 right-4 flex flex-col gap-1.5 max-w-xs z-20">
+        {hud.killFeed.slice(-4).map((k) => (
           <div
-            key={kf.id || i}
-            className="bg-slate-900/85 text-xs text-slate-100 px-3 py-1.5 rounded-lg border border-slate-700/80 shadow-md flex items-center gap-2 animate-fadeIn"
+            key={k.id}
+            className="bg-slate-900/85 text-white px-3 py-1 rounded-xl text-xs font-bold border border-slate-700 shadow flex items-center gap-2 animate-fade-in"
           >
-            <span className={kf.killerTeam === 'RED' ? 'text-red-400 font-bold' : 'text-blue-400 font-bold'}>
-              {kf.killerName}
+            <span className={k.killerTeam === 'BLUE' ? 'text-blue-400 font-black' : 'text-red-400 font-black'}>
+              {k.killerName}
             </span>
-            <span className="text-amber-300 font-semibold">[{kf.weaponName}]</span>
-            {kf.isHeadshot && <span className="text-yellow-400 font-bold">🎯</span>}
-            <span className={kf.victimTeam === 'RED' ? 'text-red-400 font-bold' : 'text-blue-400 font-bold'}>
-              {kf.victimName}
+            <span className="text-amber-400 text-[11px] font-mono">
+              [{k.weaponId.toUpperCase()}]
             </span>
+            <span className={k.victimTeam === 'BLUE' ? 'text-blue-400' : 'text-red-400'}>
+              {k.victimName}
+            </span>
+            {k.isHeadshot && <span className="text-yellow-400 text-[10px] font-black">🎯 HEADSHOT</span>}
           </div>
         ))}
       </div>
 
-      {/* RETICLE / CROSSHAIR (Center) */}
-      {!hud.isDead && (
-        <div id="hud-reticle-center" className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {/* Hitmarker X */}
-          {hud.showHitmarker && (
-            <div className="absolute text-red-500 font-black text-2xl animate-ping select-none">
-              ✕
-            </div>
-          )}
-
-          {/* Paper Crosshair */}
-          {!hud.isAiming ? (
-            <div className="relative w-7 h-7 flex items-center justify-center opacity-85">
-              <div className="absolute w-1.5 h-1.5 bg-amber-400 rounded-full border border-slate-900" />
-              <div className="absolute -top-3 w-0.5 h-2.5 bg-white shadow-sm" />
-              <div className="absolute -bottom-3 w-0.5 h-2.5 bg-white shadow-sm" />
-              <div className="absolute -left-3 w-2.5 h-0.5 bg-white shadow-sm" />
-              <div className="absolute -right-3 w-2.5 h-0.5 bg-white shadow-sm" />
-            </div>
-          ) : (
-            /* Sniper / ADS sight dot */
-            <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-md animate-pulse" />
-          )}
+      {/* HITMARKER (Center of Screen on successful shot) */}
+      {hud.showHitmarker && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <div className="w-8 h-8 relative animate-ping">
+            <div className="absolute inset-0 border-2 border-red-500 rotate-45" />
+          </div>
         </div>
       )}
 
-      {/* PC Pointer Lock Hint */}
-      {!isMobile && !isPointerLocked && !hud.isDead && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40 pointer-events-auto">
-          <button
-            id="click-to-play-lock"
-            onClick={onRequestPointerLock}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-lg px-8 py-4 rounded-2xl shadow-2xl border-4 border-slate-900 transform hover:scale-105 transition active:scale-95 flex flex-col items-center gap-1"
-          >
-            <span>🖱️ CLIQUE PARA ENTRAR NA PARTIDA</span>
-            <span className="text-xs font-bold text-slate-800 opacity-80">(Travar Mouse)</span>
-          </button>
-        </div>
-      )}
-
-      {/* DEATH OVERLAY */}
+      {/* DEATH SCREEN / RESPAWN COUNTDOWN */}
       {hud.isDead && (
-        <div id="hud-death-screen" className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-auto animate-fadeIn">
-          <div className="bg-amber-100 text-slate-900 p-8 rounded-3xl border-4 border-slate-900 shadow-2xl text-center max-w-sm mx-4 transform -rotate-1">
-            <span className="text-5xl mb-2 block">📄💥</span>
-            <h2 className="text-3xl font-black text-red-600 font-comic">VOCÊ FOI DOBRADO!</h2>
-            <p className="text-slate-600 mt-2 text-sm">Seu guerreiro de papel virou confete.</p>
-            <div className="mt-5 text-xl font-bold bg-amber-200 py-2 rounded-xl border-2 border-amber-400">
-              Renascendo em: <span className="text-red-600 font-black text-2xl">{hud.respawnCountdown}s</span>
+        <div className="absolute inset-0 bg-red-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto">
+          <h2 className="text-4xl sm:text-5xl font-black font-comic text-white tracking-widest drop-shadow-lg mb-2">
+            VOCÊ FOI ELIMINADO!
+          </h2>
+          <p className="text-lg font-bold text-amber-300 mb-6">
+            Renascer de papel em {hud.respawnCountdown} segundos...
+          </p>
+          <div className="w-48 h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+            <div
+              className="h-full bg-amber-400 rounded-full transition-all duration-300"
+              style={{ width: `${Math.max(0, Math.min(100, (hud.respawnCountdown / 4) * 100))}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* POINTER LOCK NOTIFICATION FOR PC */}
+      {!isMobile && !isPointerLocked && !hud.isDead && (
+        <div
+          id="click-to-lock-overlay"
+          onClick={onRequestPointerLock}
+          className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs flex flex-col items-center justify-center pointer-events-auto cursor-pointer z-40"
+        >
+          <div className="bg-amber-400 text-slate-950 border-4 border-slate-900 rounded-3xl p-6 shadow-[8px_8px_0px_rgba(15,23,42,1)] text-center max-w-sm transform -rotate-1">
+            <h3 className="text-2xl font-black font-comic mb-2">CLIQUE PARA JOGAR</h3>
+            <p className="text-xs font-bold text-slate-800 mb-4">
+              Clique na tela para travar o cursor do mouse e controlar a câmera FPS.
+            </p>
+            <div className="text-[11px] font-mono font-bold bg-slate-900 text-white py-1 px-3 rounded-xl inline-block">
+              Pressione ESC a qualquer momento para liberar o mouse
             </div>
           </div>
         </div>
       )}
 
       {/* BOTTOM HUD: Health & Ammo */}
-      <footer id="hud-bottom-bar" className="w-full flex items-end justify-between px-4 sm:px-8 pb-4 sm:pb-6">
+      <footer id="hud-bottom-bar" className="w-full flex items-end justify-between px-4 sm:px-8 pb-4 sm:pb-6 z-20">
         
         {/* HEALTH BAR (Left) */}
         <div id="hud-health-card" className="bg-slate-900/90 text-white p-3 sm:p-4 rounded-2xl border-2 border-slate-700 shadow-xl flex items-center gap-3 transform -rotate-1">
@@ -179,7 +212,7 @@ export const HUD: React.FC<HUDProps> = ({
             <button
               key={w.id}
               onClick={() => onWeaponSwitch(idx)}
-              className={`pointer-events-auto px-3 py-1.5 rounded-xl text-xs font-black transition flex flex-col items-center ${
+              className={`pointer-events-auto px-3 py-1.5 rounded-xl text-xs font-black transition flex flex-col items-center cursor-pointer ${
                 hud.weaponId === w.id
                   ? 'bg-amber-400 text-slate-950 shadow-md scale-105 border-2 border-slate-900'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -213,7 +246,7 @@ export const HUD: React.FC<HUDProps> = ({
           <button
             id="hud-reload-btn"
             onClick={onReload}
-            className="pointer-events-auto bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black p-2.5 sm:p-3 rounded-xl shadow-md border-2 border-slate-900 flex flex-col items-center"
+            className="pointer-events-auto bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black p-2.5 sm:p-3 rounded-xl shadow-md border-2 border-slate-900 flex flex-col items-center cursor-pointer"
             title="Recarregar arma (R)"
           >
             <RefreshCw className="w-5 h-5" />
@@ -226,83 +259,120 @@ export const HUD: React.FC<HUDProps> = ({
       {/* MOBILE TOUCH CONTROLS (Rendered if Mobile / Touch device is active)       */}
       {/* ========================================================================= */}
       {isMobile && !hud.isDead && (
-        <div id="mobile-controls-layer" className="absolute inset-0 pointer-events-none z-30">
+        <div id="mobile-controls-layer" className="absolute inset-0 pointer-events-none z-30 select-none">
           
           {/* VIRTUAL JOYSTICK (Bottom Left) */}
           <div
             id="mobile-joystick-zone"
-            className="absolute bottom-6 left-6 w-36 h-36 rounded-full bg-slate-900/40 border-2 border-white/30 backdrop-blur-sm pointer-events-auto flex items-center justify-center touch-none"
+            className="absolute bottom-6 left-6 w-36 h-36 rounded-full bg-slate-900/40 border-2 border-white/30 backdrop-blur-sm pointer-events-auto flex items-center justify-center touch-none select-none z-30"
             onTouchStart={(e) => {
-              if (inputManager) {
-                inputManager.touchJoystick.active = true;
+              e.preventDefault();
+              if (joystickTouchIdRef.current === null && e.changedTouches.length > 0) {
+                const t = e.changedTouches[0];
+                joystickTouchIdRef.current = t.identifier;
+                updateJoystick(t, e.currentTarget);
               }
             }}
             onTouchMove={(e) => {
-              if (inputManager && e.touches.length > 0) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-                const touch = e.touches[0];
-                const dx = (touch.clientX - centerX) / (rect.width / 2);
-                const dy = (touch.clientY - centerY) / (rect.height / 2);
-                const clampedX = Math.max(-1, Math.min(1, dx));
-                const clampedY = Math.max(-1, Math.min(1, dy));
-                inputManager.touchJoystick.x = clampedX;
-                inputManager.touchJoystick.y = clampedY;
-                setJoyOffset({ x: clampedX * 36, y: clampedY * 36 });
+              e.preventDefault();
+              if (joystickTouchIdRef.current === null) return;
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (t.identifier === joystickTouchIdRef.current) {
+                  updateJoystick(t, e.currentTarget);
+                  break;
+                }
               }
             }}
-            onTouchEnd={() => {
-              if (inputManager) {
-                inputManager.touchJoystick.active = false;
-                inputManager.touchJoystick.x = 0;
-                inputManager.touchJoystick.y = 0;
-                setJoyOffset({ x: 0, y: 0 });
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchIdRef.current) {
+                  resetJoystick();
+                  break;
+                }
+              }
+            }}
+            onTouchCancel={(e) => {
+              e.preventDefault();
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchIdRef.current) {
+                  resetJoystick();
+                  break;
+                }
               }
             }}
           >
-            {/* Joystick Thumb Knub */}
+            {/* Joystick Thumb Knob */}
             <div 
-              className="w-14 h-14 rounded-full bg-amber-400/80 border-2 border-slate-900 shadow-lg flex items-center justify-center text-xs font-bold text-slate-950 transition-transform duration-75"
+              className="w-14 h-14 rounded-full bg-amber-400/90 border-2 border-slate-900 shadow-lg flex items-center justify-center text-xs font-bold text-slate-950 pointer-events-none transition-transform duration-75"
               style={{ transform: `translate(${joyOffset.x}px, ${joyOffset.y}px)` }}
             >
               🕹️
             </div>
           </div>
 
-          {/* TOUCH LOOK ZONE (Right Screen half for looking around) */}
+          {/* TOUCH LOOK ZONE (Entire Right half of the screen) */}
           <div
             id="mobile-look-zone"
-            className="absolute top-20 right-0 bottom-24 left-1/2 pointer-events-auto touch-none"
+            className="absolute inset-y-0 right-0 w-1/2 pointer-events-auto touch-none select-none z-30"
             onTouchStart={(e) => {
-              if (e.touches.length > 0) {
-                e.currentTarget.dataset.lastX = String(e.touches[0].clientX);
-                e.currentTarget.dataset.lastY = String(e.touches[0].clientY);
+              e.preventDefault();
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (lookTouchIdRef.current === null) {
+                  lookTouchIdRef.current = t.identifier;
+                  lastLookPosRef.current = { x: t.clientX, y: t.clientY };
+                  break;
+                }
               }
             }}
             onTouchMove={(e) => {
-              if (inputManager && e.touches.length > 0) {
-                const lastX = parseFloat(e.currentTarget.dataset.lastX || '0');
-                const lastY = parseFloat(e.currentTarget.dataset.lastY || '0');
-                const touch = e.touches[0];
-                const dx = touch.clientX - lastX;
-                const dy = touch.clientY - lastY;
-                inputManager.addTouchLookDelta(dx, dy);
-                e.currentTarget.dataset.lastX = String(touch.clientX);
-                e.currentTarget.dataset.lastY = String(touch.clientY);
+              e.preventDefault();
+              if (lookTouchIdRef.current === null || !inputManager) return;
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (t.identifier === lookTouchIdRef.current) {
+                  const dx = t.clientX - lastLookPosRef.current.x;
+                  const dy = t.clientY - lastLookPosRef.current.y;
+                  lastLookPosRef.current = { x: t.clientX, y: t.clientY };
+                  inputManager.addTouchLookDelta(dx, dy);
+                  break;
+                }
+              }
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === lookTouchIdRef.current) {
+                  lookTouchIdRef.current = null;
+                  break;
+                }
+              }
+            }}
+            onTouchCancel={(e) => {
+              e.preventDefault();
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === lookTouchIdRef.current) {
+                  lookTouchIdRef.current = null;
+                  break;
+                }
               }
             }}
           />
 
-          {/* TOUCH ACTION BUTTONS (Bottom Right) */}
-          <div className="absolute bottom-6 right-6 flex flex-col gap-3 items-end pointer-events-auto">
+          {/* TOUCH ACTION BUTTONS (Bottom Right, higher z-index so they capture their own touches cleanly) */}
+          <div className="absolute bottom-6 right-6 flex flex-col gap-3 items-end pointer-events-auto z-40">
             <div className="flex items-center gap-3">
               {/* AIM BUTTON */}
               <button
                 id="touch-btn-aim"
-                onTouchStart={() => { if (inputManager) inputManager.touchAim = !inputManager.touchAim; }}
-                className={`w-14 h-14 rounded-full border-2 border-slate-900 shadow-xl flex items-center justify-center font-black text-sm transition ${
-                  hud.isAiming ? 'bg-amber-400 text-slate-950' : 'bg-slate-900/80 text-white'
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  if (inputManager) inputManager.touchAim = !inputManager.touchAim;
+                }}
+                className={`w-14 h-14 rounded-full border-2 border-slate-900 shadow-xl flex items-center justify-center font-black text-sm cursor-pointer transition ${
+                  hud.isAiming ? 'bg-amber-400 text-slate-950 scale-105' : 'bg-slate-900/80 text-white'
                 }`}
               >
                 🎯
@@ -311,8 +381,11 @@ export const HUD: React.FC<HUDProps> = ({
               {/* JUMP BUTTON */}
               <button
                 id="touch-btn-jump"
-                onTouchStart={() => { if (inputManager) inputManager.touchJump = true; }}
-                className="w-14 h-14 rounded-full bg-slate-900/80 active:bg-amber-400 text-white active:text-slate-950 border-2 border-slate-900 shadow-xl flex items-center justify-center font-black text-lg"
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  if (inputManager) inputManager.touchJump = true;
+                }}
+                className="w-14 h-14 rounded-full bg-slate-900/80 active:bg-amber-400 text-white active:text-slate-950 border-2 border-slate-900 shadow-xl flex items-center justify-center font-black text-lg cursor-pointer active:scale-95"
               >
                 ⬆️
               </button>
@@ -322,9 +395,12 @@ export const HUD: React.FC<HUDProps> = ({
               {/* SPRINT BUTTON */}
               <button
                 id="touch-btn-sprint"
-                onTouchStart={() => { if (inputManager) inputManager.touchSprint = !inputManager.touchSprint; }}
-                className={`w-14 h-14 rounded-full border-2 border-slate-900 shadow-xl flex items-center justify-center font-black text-sm ${
-                  inputManager?.touchSprint ? 'bg-amber-400 text-slate-950' : 'bg-slate-900/80 text-white'
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  if (inputManager) inputManager.touchSprint = !inputManager.touchSprint;
+                }}
+                className={`w-14 h-14 rounded-full border-2 border-slate-900 shadow-xl flex items-center justify-center font-black text-sm cursor-pointer ${
+                  inputManager?.touchSprint ? 'bg-amber-400 text-slate-950 scale-105' : 'bg-slate-900/80 text-white'
                 }`}
               >
                 🏃
@@ -333,9 +409,15 @@ export const HUD: React.FC<HUDProps> = ({
               {/* SHOOT BUTTON (Large primary action) */}
               <button
                 id="touch-btn-shoot"
-                onTouchStart={() => { if (inputManager) inputManager.touchShoot = true; }}
-                onTouchEnd={() => { if (inputManager) inputManager.touchShoot = false; }}
-                className="w-20 h-20 rounded-full bg-red-600 active:bg-red-500 text-white border-4 border-slate-900 shadow-2xl flex items-center justify-center font-black text-2xl active:scale-95"
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  if (inputManager) inputManager.touchShoot = true;
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  if (inputManager) inputManager.touchShoot = false;
+                }}
+                className="w-20 h-20 rounded-full bg-red-600 active:bg-red-500 text-white border-4 border-slate-900 shadow-2xl flex items-center justify-center font-black text-2xl active:scale-95 cursor-pointer"
               >
                 💥
               </button>

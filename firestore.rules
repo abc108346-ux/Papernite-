@@ -14,19 +14,19 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /matches/{matchId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(matchId);
-      allow update: if isSignedIn() && isValidId(matchId);
+      allow create, update: if isSignedIn() && isValidId(matchId);
+      allow delete: if isSignedIn();
       
       match /players/{playerId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && isValidId(playerId) && request.auth.uid == playerId;
-        allow update: if isSignedIn() && isValidId(playerId) && request.auth.uid == playerId;
-        allow delete: if isSignedIn() && request.auth.uid == playerId;
+        allow create, update: if isSignedIn() && isValidId(playerId) && (request.auth.uid == playerId || playerId.matches('^bot_.*'));
+        allow delete: if isSignedIn() && (request.auth.uid == playerId || playerId.matches('^bot_.*'));
       }
       
       match /events/{eventId} {

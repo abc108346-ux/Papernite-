@@ -13,9 +13,15 @@ import { MatchEndModal } from './components/MatchEndModal';
 import { MatchmakingScreen } from './components/MatchmakingScreen';
 import { TrainingModal } from './components/TrainingModal';
 import { MobileOrientationBlocker } from './components/MobileOrientationBlocker';
+import { LoginScreen } from './components/LoginScreen';
+import { NicknameModal } from './components/NicknameModal';
 import { soundManager } from './game/audio/SoundManager';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
+
   const [screen, setScreen] = useState<'lobby' | 'loading' | 'playing'>('lobby');
   const [userProfile, setUserProfile] = useState<UserProfile>(AuthService.getInitialProfile());
   const [selectedMap, setSelectedMap] = useState<MapSelectionId>('paper_city');
@@ -88,6 +94,51 @@ export default function App() {
   useEffect(() => {
     soundManager.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
   }, [settings.masterVolume, settings.sfxVolume, settings.musicVolume]);
+
+  // Firebase Auth Lifecycle & Auto-Sync
+  useEffect(() => {
+    const unsubscribe = AuthService.subscribeAuth(async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        try {
+          const profile = await AuthService.fetchProfile(user.uid);
+          if (profile) {
+            setUserProfile(profile);
+            if (!profile.displayName || profile.displayName.trim() === 'Soldado de Papel') {
+              setIsNicknameModalOpen(true);
+            }
+          } else {
+            // First time user registered via Google
+            const newProf: UserProfile = {
+              uid: user.uid,
+              displayName: user.displayName || 'Soldado de Papel',
+              email: user.email || undefined,
+              photoURL: user.photoURL || undefined,
+              skinId: 'explorer',
+              weaponId: 'rifle',
+              stats: { kills: 0, deaths: 0, wins: 0, matchesPlayed: 0 },
+              friends: []
+            };
+            setUserProfile(newProf);
+            setIsNicknameModalOpen(true);
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar perfil do Firestore:', err);
+        }
+      }
+      setIsAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    soundManager.playButtonClick();
+    await AuthService.logout();
+    setCurrentUser(null);
+    setUserProfile(AuthService.getInitialProfile());
+    setScreen('lobby');
+  };
 
   // =========================================================================
   // 1. ONLINE MATCHMAKING FLOW
@@ -218,12 +269,12 @@ export default function App() {
         }
       },
 
-      onMatchEnded: (winner, state) => {
-        setMatchState(state);
+      onMatchEnded: (winner, scoreRed, scoreBlue) => {
         setMatchWinner(winner);
+        setMatchState(prev => ({ ...prev, status: 'ended', scoreRed, scoreBlue }));
 
         const isWin = winner === hudState.team;
-        const myPlayerData = state.players[activeBridgeRef.current?.playerId || ''];
+        const myPlayerData = matchState.players[activeBridgeRef.current?.playerId || ''];
 
         const updatedProfile: UserProfile = {
           ...userProfile,
@@ -374,12 +425,12 @@ export default function App() {
           }
         },
 
-        onMatchEnded: (winner, state) => {
-          setMatchState(state);
+        onMatchEnded: (winner, scoreRed, scoreBlue) => {
           setMatchWinner(winner);
+          setMatchState(prev => ({ ...prev, status: 'ended', scoreRed, scoreBlue }));
 
           const isWin = winner === hudState.team;
-          const myPlayerData = state.players[activeBridgeRef.current?.playerId || ''];
+          const myPlayerData = matchState.players[activeBridgeRef.current?.playerId || ''];
 
           const updatedProfile: UserProfile = {
             ...userProfile,
@@ -451,8 +502,51 @@ export default function App() {
       {/* MOBILE ORIENTATION ENFORCER (16:9 Landscape) */}
       <MobileOrientationBlocker />
 
+      {/* AUTH LOADING STATE */}
+      {isAuthLoading && (
+        <div className="w-full h-full min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6">
+          <div className="relative w-16 h-16 mb-4 flex items-center justify-center">
+            <div className="absolute inset-0 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-2xl">📄</span>
+          </div>
+          <p className="font-comic font-black text-amber-400 text-lg tracking-wider">
+            CARREGANDO PAPERNITE...
+          </p>
+        </div>
+      )}
+
+      {/* SCREEN 0: LOGIN WITH GOOGLE (FIREBASE AUTH) */}
+      {!isAuthLoading && !currentUser && (
+        <LoginScreen
+          onLoginSuccess={(profile) => {
+            setUserProfile(profile);
+            if (!profile.displayName || profile.displayName.trim() === 'Soldado de Papel') {
+              setIsNicknameModalOpen(true);
+            }
+          }}
+        />
+      )}
+
+      {/* NICKNAME MODAL (For first login or changing nickname) */}
+      {isNicknameModalOpen && currentUser && (
+        <NicknameModal
+          uid={currentUser.uid}
+          currentDisplayName={userProfile.displayName}
+          isFirstTime={!userProfile.displayName || userProfile.displayName.trim() === 'Soldado de Papel'}
+          onSuccess={(updatedProfile) => {
+            setUserProfile(updatedProfile);
+            setIsNicknameModalOpen(false);
+          }}
+          onClose={() => {
+            if (userProfile.displayName && userProfile.displayName.trim() !== 'Soldado de Papel') {
+              setIsNicknameModalOpen(false);
+            }
+          }}
+        />
+      )}
+
       {/* SCREEN 1: LOBBY */}
-      {screen === 'lobby' && (
+      {!isAuthLoading && currentUser && screen === 'lobby' && (
         <Lobby
           userProfile={userProfile}
           onUpdateProfile={setUserProfile}
@@ -461,6 +555,8 @@ export default function App() {
           onStartMatch={handleStartOnlineMatchmaking}
           onOpenTraining={() => setIsTrainingOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenChangeNickname={() => setIsNicknameModalOpen(true)}
+          onLogout={handleLogout}
           isSearchingMatch={isMatchmakingOpen}
         />
       )}

@@ -147,7 +147,7 @@ export class LocalMatchController {
     if (this.state.timeRemaining <= 0) {
       this.state.status = 'ended';
       this.state.winnerTeam = this.state.scoreRed > this.state.scoreBlue ? 'RED' : this.state.scoreBlue > this.state.scoreRed ? 'BLUE' : 'DRAW';
-      this.callbacks.onMatchEnded(this.state.winnerTeam, this.state);
+      this.callbacks.onMatchEnded(this.state.winnerTeam, this.state.scoreRed, this.state.scoreBlue);
       return;
     }
 
@@ -209,40 +209,60 @@ export class LocalMatchController {
     const dy = targetPos.y - origin.y;
     const dz = targetPos.z - origin.z;
     const dist = Math.hypot(dx, dy, dz);
-    if (dist === 0) return true;
+    if (dist <= 0.2) return true;
 
     const dirX = dx / dist;
     const dirY = dy / dist;
     const dirZ = dz / dist;
 
     for (const box of collisionBoxes) {
-      // Ray-AABB intersection
-      const t1 = (box.min.x - origin.x) / (dirX || 0.00001);
-      const t2 = (box.max.x - origin.x) / (dirX || 0.00001);
-      const t3 = (box.min.y - origin.y) / (dirY || 0.00001);
-      const t4 = (box.max.y - origin.y) / (dirY || 0.00001);
-      const t5 = (box.min.z - origin.z) / (dirZ || 0.00001);
-      const t6 = (box.max.z - origin.z) / (dirZ || 0.00001);
+      let tMin = 0.0001;
+      let tMax = dist - 0.2;
 
-      const tMin = Math.max(
-        Math.max(Math.min(t1, t2), Math.min(t3, t4)),
-        Math.min(t5, t6)
-      );
-      const tMax = Math.min(
-        Math.min(Math.max(t1, t2), Math.max(t3, t4)),
-        Math.max(t5, t6)
-      );
-
-      // if tMax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
-      // if tMin > tMax, ray doesn't intersect AABB
-      if (tMax >= 0 && tMin <= tMax) {
-        // Intersects! Is it between origin and target?
-        if (tMin < dist && tMin > 0.1) {
-          return false; // blocked
-        }
+      // X
+      if (Math.abs(dirX) < 1e-6) {
+        if (origin.x < box.min.x || origin.x > box.max.x) continue;
+      } else {
+        const invD = 1.0 / dirX;
+        let t0 = (box.min.x - origin.x) * invD;
+        let t1 = (box.max.x - origin.x) * invD;
+        if (invD < 0.0) { const temp = t0; t0 = t1; t1 = temp; }
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+        if (tMax <= tMin) continue;
       }
+
+      // Y
+      if (Math.abs(dirY) < 1e-6) {
+        if (origin.y < box.min.y || origin.y > box.max.y) continue;
+      } else {
+        const invD = 1.0 / dirY;
+        let t0 = (box.min.y - origin.y) * invD;
+        let t1 = (box.max.y - origin.y) * invD;
+        if (invD < 0.0) { const temp = t0; t0 = t1; t1 = temp; }
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+        if (tMax <= tMin) continue;
+      }
+
+      // Z
+      if (Math.abs(dirZ) < 1e-6) {
+        if (origin.z < box.min.z || origin.z > box.max.z) continue;
+      } else {
+        const invD = 1.0 / dirZ;
+        let t0 = (box.min.z - origin.z) * invD;
+        let t1 = (box.max.z - origin.z) * invD;
+        if (invD < 0.0) { const temp = t0; t0 = t1; t1 = temp; }
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+        if (tMax <= tMin) continue;
+      }
+
+      // Blocked by this box!
+      return false;
     }
-    return true; // not blocked
+
+    return true;
   }
 
   private processBotHitRaycast(shooter: PlayerNetworkState, origin: Vector3D, dir: Vector3D, weapon: any) {
@@ -373,7 +393,7 @@ export class LocalMatchController {
       if (this.state.scoreRed >= this.state.maxScore || this.state.scoreBlue >= this.state.maxScore) {
         this.state.status = 'ended';
         this.state.winnerTeam = this.state.scoreRed >= this.state.maxScore ? 'RED' : 'BLUE';
-        this.callbacks.onMatchEnded(this.state.winnerTeam, this.state);
+        this.callbacks.onMatchEnded(this.state.winnerTeam, this.state.scoreRed, this.state.scoreBlue);
       }
     }
   }

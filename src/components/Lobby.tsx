@@ -11,7 +11,6 @@ import {
   Sliders,
   Users,
   UserPlus,
-  LogIn,
   LogOut,
   Volume2,
   VolumeX,
@@ -24,7 +23,8 @@ import {
   MapPin,
   Maximize2,
   Sparkles,
-  Layers
+  Layers,
+  Edit2
 } from 'lucide-react';
 
 interface LobbyProps {
@@ -35,6 +35,8 @@ interface LobbyProps {
   onStartMatch: () => void;
   onOpenTraining: () => void;
   onOpenSettings: () => void;
+  onOpenChangeNickname: () => void;
+  onLogout: () => void;
   isSearchingMatch: boolean;
 }
 
@@ -46,6 +48,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   onStartMatch,
   onOpenTraining,
   onOpenSettings,
+  onOpenChangeNickname,
+  onLogout,
   isSearchingMatch
 }) => {
   const viewerContainerRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,6 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [newFriendName, setNewFriendName] = useState('');
   const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
 
   const currentMapOption = MAP_OPTIONS[selectedMap] || MAP_OPTIONS.paper_city;
 
@@ -123,27 +126,6 @@ export const Lobby: React.FC<LobbyProps> = ({
     setNewFriendName('');
   };
 
-  const handleGoogleSignIn = async () => {
-    soundManager.playButtonClick();
-    setLoginError(null);
-    try {
-      const profile = await AuthService.loginWithGoogle();
-      if (profile) {
-        onUpdateProfile(profile);
-      }
-    } catch (err: any) {
-      console.warn('Google sign in warning:', err);
-      setLoginError('Configuração OAuth em andamento.');
-    }
-  };
-
-  const handleSignOut = async () => {
-    soundManager.playButtonClick();
-    await AuthService.logout();
-    const defaultProf = AuthService.getInitialProfile();
-    onUpdateProfile(defaultProf);
-  };
-
   return (
     <div
       id="papernite-lobby"
@@ -199,31 +181,52 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
           </div>
 
-          {/* User Name / Google Login Button */}
-          {userProfile.isGuest ? (
-            <button
-              id="btn-google-login"
-              onClick={handleGoogleSignIn}
-              className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-2 rounded-xl text-xs font-black font-comic flex items-center gap-1.5 shadow-md border border-slate-950 transition active:scale-95 cursor-pointer"
-            >
-              <LogIn className="w-4 h-4" />
-              <span className="hidden sm:inline">Entrar com Google</span>
-              <span className="sm:hidden">Entrar</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl">
-              <span className="text-xs font-bold text-slate-200 truncate max-w-[120px]">
+          {/* User Profile Card */}
+          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-2xl shadow">
+            {userProfile.photoURL ? (
+              <img
+                src={userProfile.photoURL}
+                alt="Avatar"
+                className="w-7 h-7 rounded-full border border-amber-400/50 object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center font-comic">
+                {userProfile.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+
+            <div className="flex flex-col">
+              <span className="text-xs font-black text-slate-100 truncate max-w-[110px] leading-tight">
                 {userProfile.displayName}
               </span>
-              <button
-                onClick={handleSignOut}
-                title="Desconectar"
-                className="text-slate-400 hover:text-rose-400 p-1 rounded-lg transition"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
+              {userProfile.email && (
+                <span className="text-[9px] text-slate-400 truncate max-w-[110px] leading-none">
+                  {userProfile.email}
+                </span>
+              )}
             </div>
-          )}
+
+            {/* Change Nickname Button */}
+            <button
+              id="btn-lobby-change-nickname"
+              onClick={onOpenChangeNickname}
+              title="Alterar Nickname"
+              className="text-slate-400 hover:text-amber-400 p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Logout Button */}
+            <button
+              id="btn-lobby-logout"
+              onClick={onLogout}
+              title="Sair da Conta"
+              className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           {/* Audio Mute/Unmute */}
           <button
@@ -246,13 +249,6 @@ export const Lobby: React.FC<LobbyProps> = ({
           </button>
         </div>
       </header>
-
-      {/* Notice Banner if login config needed */}
-      {loginError && (
-        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-300 text-xs text-center py-1.5 px-4 font-semibold">
-          {loginError} Perfil local salvo normalmente para jogar sem limitações!
-        </div>
-      )}
 
       {/* MAIN CONTENT AREA */}
       <main className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 sm:p-8 max-w-7xl mx-auto w-full items-start">

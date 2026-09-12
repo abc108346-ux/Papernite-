@@ -53,6 +53,7 @@ export interface PlayerStats {
 export interface UserProfile {
   uid: string;
   displayName: string;
+  email?: string;
   photoURL?: string;
   skinId: string;
   weaponId: string;
@@ -104,10 +105,13 @@ export interface PaperProjectile {
 
 export interface KillFeedItem {
   id: string;
+  killerId?: string;
   killerName: string;
   killerTeam: Team;
+  victimId?: string;
   victimName: string;
   victimTeam: Team;
+  weaponId?: string;
   weaponName: string;
   isHeadshot?: boolean;
   timestamp: number;

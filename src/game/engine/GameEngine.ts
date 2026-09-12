@@ -105,6 +105,7 @@ export class GameEngine {
     // 2. Camera Setup (Eye Level)
     const aspect = container.clientWidth / (container.clientHeight || 1);
     this.camera = new THREE.PerspectiveCamera(settings.fov || 75, aspect, 0.1, settings.renderDistance || 120);
+    this.camera.rotation.order = 'YXZ';
     this.scene.add(this.camera);
 
     // 3. Renderer Setup
@@ -514,9 +515,7 @@ export class GameEngine {
     this.yaw += input.yawDelta;
     this.pitch = THREE.MathUtils.clamp(this.pitch + input.pitchDelta, -Math.PI / 2.2, Math.PI / 2.2);
 
-    this.camera.rotation.set(0, 0, 0);
-    this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch;
+    this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
 
     // Mouse Sway on FPS view
     if (input.yawDelta !== 0 || input.pitchDelta !== 0) {

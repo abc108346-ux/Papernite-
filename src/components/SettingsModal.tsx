@@ -244,6 +244,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* CONTROLS TAB */}
           {activeTab === 'controls' && (
             <div className="space-y-4 text-xs sm:text-sm">
+              <div className="bg-white p-4 rounded-xl border border-slate-300 space-y-3">
+                <div className="font-black text-slate-900 flex items-center justify-between font-comic text-sm">
+                  <span>Sensibilidade da Câmera (FPS)</span>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                    <span>Sensibilidade do Mouse (PC)</span>
+                    <span>{current.mouseSensitivity.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="3.0"
+                    step="0.05"
+                    value={current.mouseSensitivity}
+                    onChange={(e) => setCurrent(prev => ({ ...prev, mouseSensitivity: parseFloat(e.target.value) }))}
+                    className="w-full accent-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                    <span>Sensibilidade do Touch (Celular / Giro da Tela)</span>
+                    <span>{current.touchSensitivity.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="3.0"
+                    step="0.05"
+                    value={current.touchSensitivity}
+                    onChange={(e) => setCurrent(prev => ({ ...prev, touchSensitivity: parseFloat(e.target.value) }))}
+                    className="w-full accent-amber-500"
+                  />
+                </div>
+              </div>
+
               <div className="bg-white p-4 rounded-xl border border-slate-300 space-y-2">
                 <div className="font-black text-slate-900 flex items-center gap-2 mb-2 font-comic text-sm">
                   <Keyboard className="w-4 h-4 text-amber-500" />
@@ -251,7 +289,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-700">
                   <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-mono font-bold">W, A, S, D</kbd> Movimentar</div>
-                  <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-mono font-bold">Mouse</kbd> Mirar</div>
+                  <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-mono font-bold">Mouse</kbd> Mirar (FPS)</div>
                   <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-mono font-bold">Clique Esq.</kbd> Atirar Bolinha</div>
                   <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-mono font-bold">Clique Dir.</kbd> Mirar (ADS)</div>
                   <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-mono font-bold">Espaço</kbd> Pular</div>
@@ -265,14 +303,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-white p-4 rounded-xl border border-slate-300 space-y-2">
                 <div className="font-black text-slate-900 flex items-center gap-2 mb-2 font-comic text-sm">
                   <Smartphone className="w-4 h-4 text-blue-500" />
-                  <span>Controles no Celular (Touch)</span>
+                  <span>Controles no Celular (Touch Separado)</span>
                 </div>
                 <ul className="list-disc pl-4 space-y-1 text-slate-700">
-                  <li><strong>Joystick Virtual (Esquerda):</strong> Mova o polegar para andar</li>
-                  <li><strong>Toque e Arraste (Direita):</strong> Controle a mira do personagem</li>
+                  <li><strong>Lado Esquerdo:</strong> Joystick Virtual independente para andar em todas as direções</li>
+                  <li><strong>Lado Direito:</strong> Deslize para controlar a visão FPS suave e proporcional</li>
                   <li><strong>Botão Vermelho (💥):</strong> Disparar arma</li>
-                  <li><strong>Botão Mira (🎯):</strong> Mirar de perto (ADS)</li>
-                  <li><strong>Botão Pulo (⬆️):</strong> Pular caixas e obstáculos</li>
+                  <li><strong>Botão Mira (🎯):</strong> Ativar mira aproximada (ADS)</li>
+                  <li><strong>Botão Pulo (⬆️):</strong> Pular obstáculos de papel</li>
+                  <li><strong>Botão Correr (🏃):</strong> Alternar corrida rápida</li>
                 </ul>
               </div>
             </div>
