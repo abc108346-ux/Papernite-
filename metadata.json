@@ -1,0 +1,6 @@
+{
+  "name": "PAPERNITE",
+  "description": "FPS 3D online cartoon no navegador com estética de papel, partidas 6v6, bots, 3 mapas e tiros de bolinhas de papel amassado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

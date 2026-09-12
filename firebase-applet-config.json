@@ -1,0 +1,9 @@
+{
+  "apiKey": "",
+  "authDomain": "paper-nite.firebaseapp.com",
+  "projectId": "paper-nite",
+  "storageBucket": "paper-nite.appspot.com",
+  "messagingSenderId": "",
+  "appId": "",
+  "firestoreDatabaseId": "(default)"
+}

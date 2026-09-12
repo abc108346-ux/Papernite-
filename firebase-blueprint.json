@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with nickname, equipped skin, equipped weapon, stats and friend list",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique user identifier",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Player nickname",
+          "maxLength": 30
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar image URL",
+          "maxLength": 500
+        },
+        "skinId": {
+          "type": "string",
+          "description": "Selected paper character skin id",
+          "maxLength": 50
+        },
+        "weaponId": {
+          "type": "string",
+          "description": "Selected paper weapon id",
+          "maxLength": 50
+        },
+        "kills": {
+          "type": "number",
+          "description": "Total career kills"
+        },
+        "deaths": {
+          "type": "number",
+          "description": "Total career deaths"
+        },
+        "wins": {
+          "type": "number",
+          "description": "Total career wins"
+        },
+        "matchesPlayed": {
+          "type": "number",
+          "description": "Total matches played"
+        },
+        "status": {
+          "type": "string",
+          "description": "Online or In-Match status",
+          "maxLength": 30
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Profile creation ISO timestamp",
+          "maxLength": 50
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated ISO timestamp",
+          "maxLength": 50
+        }
+      },
+      "required": ["uid", "displayName", "skinId", "weaponId"]
+    },
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "Friend requests between players",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string", "maxLength": 128 },
+        "fromNickname": { "type": "string", "maxLength": 30 },
+        "toUid": { "type": "string", "maxLength": 128 },
+        "toNickname": { "type": "string", "maxLength": 30 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["fromUid", "toUid", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public player profile containing skin, weapon, stats and nickname"
+    },
+    "/friendRequests/{requestId}": {
+      "schema": "FriendRequest",
+      "description": "Friend requests between players"
+    }
+  }
+}
